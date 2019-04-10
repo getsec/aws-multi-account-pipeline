@@ -14,15 +14,15 @@ A pipeline that leverage the aws codesuite to deploy templates in multiple accou
 ## Basics
 ```sh
 whitelist-pipeline
-|--> Deploy
+|--> deploy
 |       |----> deploy_templates.sh <-- Used for deploying the templates
-|--> Pipeline
+|--> pipeline
 |       |----> pipeline-deploy.sh  <-- Used to deploy the pipeline.yaml file
-|       |----> pipeline.yaml       <-- Actual source code for the pipeline
-|--> Templates
-|       |----> whitelist-policies.yaml <-- The templates that the deploy_templates.sh leverages
-|--> Valudation
-|       |----> validate_template.sh < -- just some basic validation script for codebuild
+|       |----> pipeline.yaml       <-- cfn source for pipeline pipeline
+|--> templates
+|       |----> multi-account.yaml <-- The templates that the deploy_templates.sh leverages
+|--> validation
+|       |----> validate_template.sh < -- just some basic validation script for codebuild stage
 |--> buildspec.yml <-- Leveraged by codebuild to launch pipeline
 |--> README.md     <-- the instructions 
 
