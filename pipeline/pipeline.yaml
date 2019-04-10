@@ -1,0 +1,360 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Used to deploy the changes regarding the whitelisting process
+
+Parameters:
+  RepoName:
+    Default: whitelist-source
+    Type: String
+    Description: Name of the repository
+  MasterBranchName:
+    Description: MasterBranchName - Name of the master branch
+    Type: String
+    Default: master
+  PipelineName:
+    Description: The name of your pipeline.
+    Default: WhitelistPipeline
+    Type: String
+  CodeBuildName:
+    Default: Whitelist-Codebuild
+    Description: Name of the codebuild project, no need to change this.
+    Type: String
+  CodeBuildNameValidate:
+    Default: Whitelist-Codebuild-Validate
+    Description: Name of the codebuild project, no need to change this.
+    Type: String
+  RoleToAssume:
+    Type: String
+    Description: The name of the role that we will assume into each account
+    Default: xxx
+
+  # TAGS
+  environment:
+    Type: String
+    Default: xxx
+  techowner:
+    Type: String
+    Default: xxx
+  techownermail:
+    Type: String
+    Default: xxx@domain.com
+  bizowner:
+    Type: String
+    Default: xxx
+  bizowneremail:
+    Type: String
+    Default: xxx@domain.com
+  classification:
+    Type: String
+    Default: xxx
+  applicationname:
+    Type: String
+    Default: whitelist-pipeline
+  costcode:
+    Type: String
+    Default: 1234
+
+Resources:
+  PipelineArtifacts:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: cost_code
+          Value: !Ref costcode
+        - Key: application_name
+          Value: !Ref applicationname
+        - Key: business_owner
+          Value: !Ref bizowner
+        - Key: bus_owner_email
+          Value: !Ref bizowneremail
+        - Key: tech_owner
+          Value: !Ref techowner
+        - Key: tech_owner_email
+          Value: !Ref techownermail
+        - Key: classification
+          Value: !Ref classification
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudPipelinePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: "*"
+                Resource: "*"
+
+  CodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub WhitelistPipelineRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        - PolicyName: !Sub WhitelistPipelinePolicy-${AWS::StackName}
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "cloudformation:*"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "codecommit:ListBranches"
+                  - "codecommit:ListRepositories"
+                  - "codecommit:BatchGetRepositories"
+                  - "codecommit:Get*"
+                  - "codecommit:GitPull"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "ec2:Describe*"
+                  - "cloudformation:ValidateTemplate"
+                  - "elasticloadbalancing:Describe*"
+                  - "autoscaling:Describe*"
+                  - "iam:Get*"
+                  - "iam:List*"
+                  - "logs:Describe*"
+                  - "logs:Get*"
+                  - "tag:Get*"
+                Resource:
+                  - "*"
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "organizations:ListAccounts"
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - "sts:Assumerole"
+                Resource: "arn:aws:iam::*:role/AWSCloudFormationStackSetExecutionRole"
+
+  CodeBuildPoject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref CodeBuildName
+      Description: Build to validate and copy CFN templates
+      TimeoutInMinutes: 15
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/ubuntu-base:14.04
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: cost_code
+          Value: !Ref costcode
+        - Key: application_name
+          Value: !Ref applicationname
+        - Key: business_owner
+          Value: !Ref bizowner
+        - Key: bus_owner_email
+          Value: !Ref bizowneremail
+        - Key: tech_owner
+          Value: !Ref techowner
+        - Key: tech_owner_email
+          Value: !Ref techownermail
+        - Key: classification
+          Value: !Ref classification
+
+  CodeBuildPojectValidate:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref CodeBuildNameValidate
+      Description: Build to validate and copy CFN templates
+      TimeoutInMinutes: 15
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/ubuntu-base:14.04
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - sudo pip install cfn-lint
+            build:
+              commands:
+                - bash validation/validate_template.sh
+          artifacts:
+            files:
+              - "**/*"
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: cost_code
+          Value: !Ref costcode
+        - Key: application_name
+          Value: !Ref applicationname
+        - Key: business_owner
+          Value: !Ref bizowner
+        - Key: bus_owner_email
+          Value: !Ref bizowneremail
+        - Key: tech_owner
+          Value: !Ref techowner
+        - Key: tech_owner_email
+          Value: !Ref techownermail
+        - Key: classification
+          Value: !Ref classification
+
+  AmazonCloudWatchEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub ${AWS::StackName}-cwevent
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${PipelineName}
+
+  AmazonCloudWatchEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - "CodeCommit Repository State Change"
+        resources:
+          - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - master
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${PipelineName}
+          RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
+          Id: !Sub ${AWS::StackName}-codepipeline-AppPipeline
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Ref PipelineName
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: PipelineArtifacts
+      RoleArn: !GetAtt PipelineRole.Arn
+      Stages:
+        - Name: Review-Master-Branch-Source-Code
+          Actions:
+            - Name: Checkout-Source-Code-Master-Branch
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: CodeCommit
+              Configuration:
+                PollForSourceChanges: False
+                RepositoryName: !Ref RepoName
+                BranchName: !Ref MasterBranchName
+              OutputArtifacts:
+                - Name: whitelist-build-input
+              RunOrder: 1
+        - Name: Validate-Master-Branch
+          Actions:
+            - Name: Validate-Template-Files
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildPojectValidate
+              InputArtifacts:
+                - Name: whitelist-build-input
+              OutputArtifacts:
+                - Name: whitelist-build
+              RunOrder: 1
+        - Name: Deploy-Prod-Approval
+          Actions:
+            - Name: Approval-For-Production
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+              OutputArtifacts: []
+              RunOrder: 1
+        - Name: Deploy-Master-Branch
+          Actions:
+            - Name: Deploy-Template-Files
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildPoject
+              InputArtifacts:
+                - Name: whitelist-build
+              # OutputArtifacts:
+              #   - Name: whitelist-build
+              RunOrder: 1

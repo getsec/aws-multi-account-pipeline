@@ -1,0 +1,185 @@
+Description: >
+  This template is used to deploy changes to the whitelists.
+  Used for policy changes for roles.
+
+Parameters:
+  MaxSessionDurationSeconds:
+    Type: Number
+    Default: 14400
+    Description: Maximum CLI Session duration in seconds
+  DatabaseAdminRoleName:
+    Type: String
+    Description: Name of the role used for database admins
+    Default: DatabaseAdmin
+  DataScientistRoleName:
+    Type: String
+    Description: Name of the role used for the data scientist
+    Default: DataScientist
+  NetworkAdminRoleName:
+    Type: String
+    Description: Name or the role used for network admins
+    Default: NetworkAdmin
+  InfrastructureRoleName:
+    Description: Name of the role for infra admins
+    Type: String
+    Default: InfrastructureAdmin
+  TechnicalServicesRoleName:
+    Description: Name of the role for infra admins
+    Type: String
+    Default: TechnicalServicesAdmin
+
+Resources:
+  ## ROLES LIVE HERE ##
+  DatabaseAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref DatabaseAdminRoleName
+      MaxSessionDuration: !Ref MaxSessionDurationSeconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/AzureAD
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                "SAML:aud": "https://signin.aws.amazon.com/saml"
+      Path: /
+      ManagedPolicyArns:
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+        - arn:aws:iam::aws:policy/job-function/DatabaseAdministrator
+  DataScientistRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref DataScientistRoleName
+      MaxSessionDuration: !Ref MaxSessionDurationSeconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/AzureAD
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                "SAML:aud": "https://signin.aws.amazon.com/saml"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/DataScientist
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+  NetworkAdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref NetworkAdminRoleName
+      MaxSessionDuration: !Ref MaxSessionDurationSeconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/AzureAD
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                "SAML:aud": "https://signin.aws.amazon.com/saml"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/NetworkAdministrator
+        - arn:aws:iam::aws:policy/AWSDirectConnectFullAccess
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref InfrastructureRoleName
+      MaxSessionDuration: !Ref MaxSessionDurationSeconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/AzureAD
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                "SAML:aud": "https://signin.aws.amazon.com/saml"
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+
+  TechnicalServicesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref TechnicalServicesRoleName
+      MaxSessionDuration: !Ref MaxSessionDurationSeconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/AzureAD
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                "SAML:aud": "https://signin.aws.amazon.com/saml"
+      Path: /
+      ManagedPolicyArns:
+        - !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+        - arn:aws:iam::aws:policy/AWSCertificateManagerFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+
+  ## END OF ROLES ##
+  ## BEGIN POLICIES HERE ##
+
+  # pro-tip:
+  # mngd policies referenced in the lz template that would require a lot of work to move
+  # global-deny-corporate-tag-editing-iam-policy
+  #     >  !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-specific-regions-iam-policy
+  # deny-master-branch-changes-iam-policy
+  #     >  !Sub arn:aws:iam::${AWS::AccountId}:policy/global-restrict-networking-iam-policy
+
+  CloudFromationWhitelistPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub CloudFormation-${AWS::StackName}
+      Roles:
+        - !Ref DataScientistRole
+        - !Ref NetworkAdminRole
+        - !Ref InfrastructureRoleName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "cloudformation:Describe*"
+              - "cloudformation:List*"
+              - "cloudformation:Delete*"
+              - "cloudformation:Get*"
+            Resource: !Sub arn:aws:cloudformation:*:${AWS::AccountId}:*
+  CodePipelineWhitelistPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub CodePipeline-${AWS::StackName}
+      Roles:
+        - !Ref DataScientistRole
+        - !Ref NetworkAdminRole
+        - !Ref InfrastructureRoleName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "CodePipeline:*"
+            Resource: "*"
+  ## END OF POLICIES ##
